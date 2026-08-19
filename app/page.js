@@ -9,7 +9,7 @@ export default function Home() {
           AI-powered sales intelligence that helps businesses identify, prioritize, and understand their best prospects.
         </p>
         <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-          <a href="#" className="rounded-lg bg-indigo-600 px-6 py-3 text-white font-semibold hover:bg-indigo-700 transition">
+          <a href="/signup" className="rounded-lg bg-indigo-600 px-6 py-3 text-white font-semibold hover:bg-indigo-700 transition">
             Start Free
           </a>
           <a href="#how-it-works" className="rounded-lg border border-slate-300 px-6 py-3 text-slate-700 font-semibold hover:bg-slate-50 transition">
