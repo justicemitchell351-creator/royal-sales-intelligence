@@ -43,7 +43,7 @@ export default function Onboarding() {
     if (error) {
       setMessage('Error: ' + error.message)
     } else {
-      setMessage('Business profile saved!')
+      setMessage('Business profile saved!'); window.location.href = '/dashboard'
     }
     setLoading(false)
   }
