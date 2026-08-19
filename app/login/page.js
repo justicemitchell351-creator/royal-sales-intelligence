@@ -19,7 +19,7 @@ export default function Login() {
     if (error) {
       setMessage(error.message)
     } else {
-      setMessage('Logged in! (Dashboard comes in a later phase.)')
+      window.location.href = '/onboarding'
     }
     setLoading(false)
   }
