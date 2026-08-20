@@ -107,6 +107,11 @@ export default function Dashboard() {
     setGeneratingIcp(false)
   }
 
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    window.location.href = '/login'
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-white">
@@ -134,9 +139,18 @@ export default function Dashboard() {
             <p className="text-sm text-slate-500">Welcome back</p>
             <h1 className="text-2xl font-bold">{profile.business_name || 'Your Business'}</h1>
           </div>
-          <a href="/leads" className="rounded-lg bg-indigo-600 px-4 py-2 text-white text-sm font-semibold hover:bg-indigo-700 transition">
-            Manage Leads
-          </a>
+          <div className="flex items-center gap-3">
+            <a href="/leads" className="rounded-lg bg-indigo-600 px-4 py-2 text-white text-sm font-semibold hover:bg-indigo-700 transition">
+              Manage Leads
+            </a>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="text-sm text-slate-500 font-semibold hover:text-slate-700"
+            >
+              Log out
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
