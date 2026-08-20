@@ -3,11 +3,27 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+const icpLabels = {
+  customer_type: 'Customer Type',
+  industry: 'Industry',
+  location: 'Location',
+  estimated_budget: 'Estimated Budget',
+  likely_needs: 'Likely Needs',
+  buying_signals: 'Buying Signals',
+  pain_points: 'Pain Points',
+  reasons_to_purchase: 'Reasons They May Purchase',
+  recommended_sales_approach: 'Recommended Sales Approach',
+}
+
 export default function Dashboard() {
+  const [userId, setUserId] = useState(null)
   const [profile, setProfile] = useState(null)
   const [leads, setLeads] = useState([])
+  const [icp, setIcp] = useState(null)
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
+  const [generatingIcp, setGeneratingIcp] = useState(false)
+  const [icpMessage, setIcpMessage] = useState('')
 
   useEffect(() => {
     async function loadDashboard() {
@@ -17,6 +33,7 @@ export default function Dashboard() {
         window.location.href = '/login'
         return
       }
+      setUserId(userData.user.id)
 
       const { data: profileData, error: profileError } = await supabase
         .from('business_profiles')
@@ -42,13 +59,53 @@ export default function Dashboard() {
         .select('*')
         .eq('user_id', userData.user.id)
         .order('created_at', { ascending: false })
-
       setLeads(leadsData || [])
+
+      const { data: icpData } = await supabase
+        .from('ideal_customer_profiles')
+        .select('*')
+        .eq('user_id', userData.user.id)
+        .maybeSingle()
+      setIcp(icpData || null)
+
       setLoading(false)
     }
 
     loadDashboard()
   }, [])
+
+  async function handleGenerateIcp() {
+    setGeneratingIcp(true)
+    setIcpMessage('')
+    try {
+      const res = await fetch('/api/generate-icp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile),
+      })
+      const data = await res.json()
+
+      if (!res.ok) {
+        setIcpMessage('Error: ' + (data.error || 'Failed to generate profile'))
+        setGeneratingIcp(false)
+        return
+      }
+
+      const { error } = await supabase
+        .from('ideal_customer_profiles')
+        .upsert({ user_id: userId, ...data.icp }, { onConflict: 'user_id' })
+
+      if (error) {
+        setIcpMessage('Error saving profile: ' + error.message)
+      } else {
+        setIcp(data.icp)
+        setIcpMessage('')
+      }
+    } catch (err) {
+      setIcpMessage('Error: ' + err.message)
+    }
+    setGeneratingIcp(false)
+  }
 
   if (loading) {
     return (
@@ -87,6 +144,38 @@ export default function Dashboard() {
           <StatCard label="High Priority" value="—" />
           <StatCard label="Interested" value={interested} />
           <StatCard label="Won" value={won} />
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold">Ideal Customer Profile</h2>
+            <button
+              type="button"
+              onClick={handleGenerateIcp}
+              disabled={generatingIcp}
+              className="rounded-lg bg-indigo-600 px-4 py-2 text-white text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-50"
+            >
+              {generatingIcp ? 'Generating...' : icp ? 'Regenerate' : 'Generate Profile'}
+            </button>
+          </div>
+          {icpMessage && <p className="text-sm text-red-600 mb-4">{icpMessage}</p>}
+          {!icp && !generatingIcp && (
+            <p className="text-sm text-slate-500">
+              No profile yet. Tap &quot;Generate Profile&quot; to have the AI analyze your business.
+            </p>
+          )}
+          {icp && (
+            <div className="space-y-3">
+              {Object.entries(icpLabels).map(([key, label]) => (
+                icp[key] ? (
+                  <div key={key}>
+                    <p className="text-xs font-semibold text-slate-500">{label}</p>
+                    <p className="text-sm text-slate-700">{icp[key]}</p>
+                  </div>
+                ) : null
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="rounded-xl border border-slate-200 bg-white p-6">
