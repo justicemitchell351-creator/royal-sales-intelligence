@@ -6,14 +6,30 @@ import { supabase } from '@/lib/supabase'
 
 const statuses = ['New', 'Contacted', 'Responded', 'Interested', 'Negotiation', 'Won', 'Lost']
 
+function scoreLabel(score) {
+  if (score >= 94) return 'Excellent fit'
+  if (score >= 80) return 'Strong fit'
+  if (score >= 60) return 'Potential'
+  if (score >= 40) return 'Weak'
+  return 'Poor fit'
+}
+
+function scoreColor(score) {
+  if (score >= 80) return 'text-green-600'
+  if (score >= 60) return 'text-amber-600'
+  return 'text-red-600'
+}
+
 export default function Leads() {
   const [userId, setUserId] = useState(null)
+  const [icp, setIcp] = useState(null)
   const [leads, setLeads] = useState([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [scoringId, setScoringId] = useState(null)
 
   useEffect(() => {
     async function init() {
@@ -23,6 +39,14 @@ export default function Leads() {
         return
       }
       setUserId(userData.user.id)
+
+      const { data: icpData } = await supabase
+        .from('ideal_customer_profiles')
+        .select('*')
+        .eq('user_id', userData.user.id)
+        .maybeSingle()
+      setIcp(icpData || null)
+
       await loadLeads(userData.user.id)
       setLoading(false)
     }
@@ -63,6 +87,40 @@ export default function Leads() {
   async function handleStatusChange(leadId, status) {
     await supabase.from('leads').update({ status }).eq('id', leadId)
     await loadLeads(userId)
+  }
+
+  async function handleScoreLead(lead) {
+    if (!icp) {
+      setMessage('Generate an Ideal Customer Profile on your dashboard first.')
+      return
+    }
+    setScoringId(lead.id)
+    setMessage('')
+    try {
+      const res = await fetch('/api/score-lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead, icp }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setMessage('Error: ' + (data.error || 'Failed to score lead'))
+        setScoringId(null)
+        return
+      }
+      const { error } = await supabase
+        .from('leads')
+        .update({ ...data.result, scored_at: new Date().toISOString() })
+        .eq('id', lead.id)
+      if (error) {
+        setMessage('Error saving score: ' + error.message)
+      } else {
+        await loadLeads(userId)
+      }
+    } catch (err) {
+      setMessage('Error: ' + err.message)
+    }
+    setScoringId(null)
   }
 
   function handleCsvUpload(e) {
@@ -119,6 +177,13 @@ export default function Leads() {
           <a href="/dashboard" className="text-sm text-indigo-600 font-semibold">Back to dashboard</a>
         </div>
 
+        {!icp && (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 mb-6 text-sm text-amber-800">
+            You haven&apos;t generated an Ideal Customer Profile yet. Go to your{' '}
+            <a href="/dashboard" className="font-semibold underline">dashboard</a> and generate one before scoring leads.
+          </div>
+        )}
+
         <div className="rounded-xl border border-slate-200 bg-white p-6 mb-6">
           <h2 className="font-semibold mb-4">Add a lead</h2>
           <div className="grid sm:grid-cols-2 gap-4 mb-4">
@@ -157,22 +222,54 @@ export default function Leads() {
           {leads.length === 0 ? (
             <p className="text-sm text-slate-500">No leads yet. Add one above or upload a CSV.</p>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {leads.map((lead) => (
-                <div key={lead.id} className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div>
-                    <p className="font-medium">{lead.name || lead.company || 'Unnamed lead'}</p>
-                    <p className="text-xs text-slate-500">{lead.company}{lead.company && lead.location ? ' · ' : ''}{lead.location}</p>
+                <div key={lead.id} className="border-b border-slate-100 pb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-medium">{lead.name || lead.company || 'Unnamed lead'}</p>
+                      <p className="text-xs text-slate-500">{lead.company}{lead.company && lead.location ? ' · ' : ''}{lead.location}</p>
+                    </div>
+                    <select
+                      value={lead.status}
+                      onChange={(e) => handleStatusChange(lead.id, e.target.value)}
+                      className="text-sm rounded-lg border border-slate-300 px-2 py-1"
+                    >
+                      {statuses.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
                   </div>
-                  <select
-                    value={lead.status}
-                    onChange={(e) => handleStatusChange(lead.id, e.target.value)}
-                    className="text-sm rounded-lg border border-slate-300 px-2 py-1"
-                  >
-                    {statuses.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+
+                  {lead.score != null ? (
+                    <div className="mt-2 space-y-1">
+                      <p className={`font-bold ${scoreColor(lead.score)}`}>
+                        {lead.score}/100 — {scoreLabel(lead.score)}
+                      </p>
+                      <p className="text-sm text-slate-700">{lead.score_reason}</p>
+                      {lead.positive_signals && <p className="text-xs text-slate-500"><span className="font-semibold">Positive signals:</span> {lead.positive_signals}</p>}
+                      {lead.missing_information && <p className="text-xs text-slate-500"><span className="font-semibold">Missing info:</span> {lead.missing_information}</p>}
+                      {lead.potential_concerns && <p className="text-xs text-slate-500"><span className="font-semibold">Concerns:</span> {lead.potential_concerns}</p>}
+                      {lead.recommended_next_action && <p className="text-xs text-slate-500"><span className="font-semibold">Next action:</span> {lead.recommended_next_action}</p>}
+                      <button
+                        type="button"
+                        onClick={() => handleScoreLead(lead)}
+                        disabled={scoringId === lead.id}
+                        className="mt-2 text-xs text-indigo-600 font-semibold disabled:opacity-50"
+                      >
+                        {scoringId === lead.id ? 'Rescoring...' : 'Rescore'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleScoreLead(lead)}
+                      disabled={scoringId === lead.id || !icp}
+                      className="mt-2 text-sm rounded-lg bg-indigo-600 px-3 py-1.5 text-white font-semibold hover:bg-indigo-700 transition disabled:opacity-50"
+                    >
+                      {scoringId === lead.id ? 'Scoring...' : 'Score this lead'}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
