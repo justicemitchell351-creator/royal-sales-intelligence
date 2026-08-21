@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server'
+import { verifyUser } from '@/lib/verifyUser'
 
 export async function POST(request) {
+  const { user, error: authError } = await verifyUser(request)
+  if (!user) {
+    return NextResponse.json({ error: authError }, { status: 401 })
+  }
+
   try {
     const body = await request.json()
 

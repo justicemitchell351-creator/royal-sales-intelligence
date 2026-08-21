@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server'
+import { verifyUser } from '@/lib/verifyUser'
 
 export async function POST(request) {
+  const { user, error: authError } = await verifyUser(request)
+  if (!user) {
+    return NextResponse.json({ error: authError }, { status: 401 })
+  }
+
   try {
     const { lead, profile } = await request.json()
 
-    const prompt = `You are a sales copywriter. Write a personalized, professional outreach draft from a business to a prospective customer, using only the information provided below. Do not invent facts. Do not claim to have personally researched the lead beyond what is given. Do not make exaggerated or false promises. Keep the tone warm, brief, and professional — not pushy or salesy.
+    const prompt = `You are a sales copywriter. Write a personalized, professional outreach draft from a business to a prospective customer, using only the information provided below. Do not invent facts. Do not claim to have personally researched the lead beyond what is given. Do not make exaggerated or false promises, and do not mention sending attachments or files. Keep the tone warm, brief, and professional — not pushy or salesy.
 
 BUSINESS SENDING THE MESSAGE:
 Name: ${profile?.business_name || 'Not provided'}

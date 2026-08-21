@@ -120,9 +120,13 @@ export default function Leads() {
     setScoringId(lead.id)
     setMessage('')
     try {
+      const { data: sessionData } = await supabase.auth.getSession()
       const res = await fetch('/api/score-lead', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionData?.session?.access_token}`,
+        },
         body: JSON.stringify({ lead, icp }),
       })
       const data = await res.json()
@@ -150,9 +154,13 @@ export default function Leads() {
     setOutreachId(lead.id)
     setMessage('')
     try {
+      const { data: sessionData } = await supabase.auth.getSession()
       const res = await fetch('/api/generate-outreach', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${sessionData?.session?.access_token}`,
+        },
         body: JSON.stringify({ lead, profile }),
       })
       const data = await res.json()
